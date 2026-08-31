@@ -171,7 +171,7 @@ def update_log(log_id, work_date, user_name, category, task_name, work_hours, pr
         UPDATE daily_logs 
         SET work_date = ?, user_name = ?, category = ?, task_name = ?, work_hours = ?, processed_count = ?, notes = ?
         WHERE id = ?
-    ''', (work_date.strftime("%Y-%m-%d"), user_name, category, task_name, work_hours, processed_count, notes, log_id))
+    ''', (pd.to_datetime(work_date).strftime("%Y-%m-%d"), user_name, category, task_name, float(work_hours), int(processed_count), str(notes), log_id))
     conn.commit()
     conn.close()
 
@@ -207,7 +207,7 @@ def compute_summary_uph(df_agg):
     return df_agg
 
 # ---------------------------------------------------------
-# コールバック関数群 (セッション状態を安全に更新)
+# コールバック関数群
 # ---------------------------------------------------------
 def set_hours_cb(key, val):
     st.session_state[key] = float(val)
@@ -464,7 +464,7 @@ with main_tab1:
         st.info(f"{chk_date.strftime('%Y-%m-%d')} に登録されているデータはありません。")
 
 # ==========================================
-# TAB 2: ✏️ 登録実績の修正・削除
+# TAB 2: ✏️ 登録実績の修正・削除（動的連動型修正版）
 # ==========================================
 with main_tab2:
     st.subheader("登録済み実績データの修正・削除")
@@ -498,43 +498,51 @@ with main_tab2:
         target_row = df_date_edit[df_date_edit['label'] == selected_label].iloc[0]
         target_id = int(target_row['id'])
         current_date = datetime.strptime(target_row['work_date'], "%Y-%m-%d").date()
-        current_cat = target_row['category'] if target_row['category'] in ["商品情報", "撮影", "工程管理"] else "商品情報"
+        current_cat = str(target_row['category']) if target_row['category'] in ["商品情報", "撮影", "工程管理"] else "商品情報"
+        curr_user = str(target_row['user_name'])
+        curr_task = str(target_row['task_name'])
         
         st.markdown("---")
-
         st.markdown(f"##### ✏️ 3. 選択中のデータ（ID: {target_id}）を編集")
         
+        # 動的キー (target_id付き) により、2で選択データを変えた瞬間に下部へ即座に反映される
         with st.container(border=True):
             col_e1, col_e2, col_e3 = st.columns(3)
             
             with col_e1:
-                edit_date = st.date_input("作業日", current_date, key="edit_form_date")
-                edit_cat = st.selectbox("業務カテゴリ", ["商品情報", "撮影", "工程管理"], index=["商品情報", "撮影", "工程管理"].index(current_cat), key="edit_form_cat")
+                edit_date = st.date_input("作業日", current_date, key=f"edit_date_{target_id}")
+                
+                cat_list = ["商品情報", "撮影", "工程管理"]
+                cat_idx = cat_list.index(current_cat) if current_cat in cat_list else 0
+                edit_cat = st.selectbox("業務カテゴリ", cat_list, index=cat_idx, key=f"edit_cat_{target_id}")
             
             with col_e2:
-                avail_users = CATEGORY_USER_MASTER.get(edit_cat, ALL_USERS)
-                avail_tasks = TASK_MASTER.get(edit_cat, ["通常作業"])
+                avail_users = CATEGORY_USER_MASTER.get(edit_cat, ALL_USERS).copy()
+                if curr_user not in avail_users:
+                    avail_users.insert(0, curr_user)
+                user_idx = avail_users.index(curr_user)
+                edit_user = st.selectbox("担当者名", avail_users, index=user_idx, key=f"edit_user_{target_id}")
                 
-                user_idx = avail_users.index(target_row['user_name']) if target_row['user_name'] in avail_users else 0
-                task_idx = avail_tasks.index(target_row['task_name']) if target_row['task_name'] in avail_tasks else 0
-                
-                edit_user = st.selectbox("担当者名", avail_users, index=user_idx, key="edit_form_user")
-                edit_task = st.selectbox("詳細作業", avail_tasks, index=task_idx, key="edit_form_task")
+                avail_tasks = TASK_MASTER.get(edit_cat, ["通常作業"]).copy()
+                if curr_task not in avail_tasks:
+                    avail_tasks.insert(0, curr_task)
+                task_idx = avail_tasks.index(curr_task)
+                edit_task = st.selectbox("詳細作業", avail_tasks, index=task_idx, key=f"edit_task_{target_id}")
                 
             with col_e3:
-                edit_hours = st.number_input("稼働時間 (時間)", min_value=0.0, max_value=24.0, value=float(target_row['work_hours']), step=0.25, key="edit_form_hours")
-                edit_count = st.number_input("処理数 (点/箱)", min_value=0, value=int(target_row['processed_count']), step=1, key="edit_form_count")
+                edit_hours = st.number_input("稼働時間 (時間)", min_value=0.0, max_value=24.0, value=float(target_row['work_hours']), step=0.25, key=f"edit_hours_{target_id}")
+                edit_count = st.number_input("処理数 (点/箱)", min_value=0, value=int(target_row['processed_count']), step=1, key=f"edit_count_{target_id}")
             
-            edit_notes = st.text_input("備考・共有事項", value=str(target_row['notes'] or ''), key="edit_form_notes")
+            edit_notes = st.text_input("備考・共有事項", value=str(target_row['notes'] or ''), key=f"edit_notes_{target_id}")
 
             col_btn1, col_btn2 = st.columns([1, 1])
             with col_btn1:
-                if st.button("💾 この内容で実績を上書き修正する", type="primary", use_container_width=True):
+                if st.button("💾 この内容で実績を上書き修正する", type="primary", use_container_width=True, key=f"btn_upd_{target_id}"):
                     update_log(target_id, edit_date, edit_user, edit_cat, edit_task, edit_hours, edit_count, edit_notes)
                     st.success(f"ID:{target_id} の実績データを更新しました。")
                     st.rerun()
             with col_btn2:
-                if st.button("🗑️ このデータを完全に削除する", use_container_width=True):
+                if st.button("🗑️ このデータを完全に削除する", use_container_width=True, key=f"btn_del_{target_id}"):
                     delete_log(target_id)
                     st.success(f"ID:{target_id} の実績データを削除しました。")
                     st.rerun()
