@@ -153,11 +153,7 @@ st.set_page_config(page_title="作業処理数・可処分管理アプリ", layo
 st.markdown("""
 <style>
 div[data-testid="column"] {
-    padding: 0px 2px;
-}
-button {
-    width: 100%;
-    margin-bottom: 5px;
+    padding: 0px 4px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -774,12 +770,14 @@ with main_tab4:
         st.info("データが登録されていません。")
 
 # ==========================================
-# TAB 5: ⚙️ マスタ管理画面
+# TAB 5: ⚙️ マスタ管理画面 (選択肢表示改善版)
 # ==========================================
 with main_tab5:
     st.subheader("選択肢マスタの編集・並び替え")
     
     m_tab1, m_tab2 = st.tabs(["👤 業務別担当者マスタ", "📋 詳細作業マスタ"])
+
+    categories_list = ["商品情報", "撮影", "工程管理"]
 
     # 1. 業務別担当者マスタ編集
     with m_tab1:
@@ -793,7 +791,7 @@ with main_tab5:
         
         with col_u1:
             st.markdown("**◆ 新規追加**")
-            target_cat_u_add = st.selectbox("対象業務カテゴリ", ["商品情報", "撮影", "工程管理"], key="add_u_cat")
+            target_cat_u_add = st.radio("対象業務カテゴリ", categories_list, key="add_u_cat_radio", horizontal=True)
             new_user_name = st.text_input("担当者名を入力", key="add_u_name")
             if st.button("➕ 追加する", key="btn_add_user"):
                 if new_user_name.strip():
@@ -813,7 +811,7 @@ with main_tab5:
 
         with col_u2:
             st.markdown("**◆ 登録済み一覧 ＆ 削除・並び替え**")
-            target_cat_u_edit = st.selectbox("表示する業務カテゴリ", ["商品情報", "撮影", "工程管理"], key="edit_u_cat")
+            target_cat_u_edit = st.radio("表示する業務カテゴリ", categories_list, key="edit_u_cat_radio", horizontal=True)
             
             df_u_cat = df_users[df_users['category'] == target_cat_u_edit].copy()
             if not df_u_cat.empty:
@@ -854,7 +852,7 @@ with main_tab5:
         
         with col_t1:
             st.markdown("**◆ 新規追加**")
-            target_cat_t_add = st.selectbox("対象業務カテゴリ", ["商品情報", "撮影", "工程管理"], key="add_t_cat_form")
+            target_cat_t_add = st.radio("対象業務カテゴリ", categories_list, key="add_t_cat_radio", horizontal=True)
             new_task_name = st.text_input("詳細作業名を入力", key="add_t_name_form")
             if st.button("➕ 追加する", key="btn_add_task"):
                 if new_task_name.strip():
@@ -874,7 +872,7 @@ with main_tab5:
 
         with col_t2:
             st.markdown("**◆ 登録済み一覧 ＆ 削除・並び替え**")
-            target_cat_t_edit = st.selectbox("表示する業務カテゴリ", ["商品情報", "撮影", "工程管理"], key="edit_t_cat_form")
+            target_cat_t_edit = st.radio("表示する業務カテゴリ", categories_list, key="edit_t_cat_radio", horizontal=True)
             
             df_t_cat = df_tasks[df_tasks['category'] == target_cat_t_edit].copy()
             if not df_t_cat.empty:
