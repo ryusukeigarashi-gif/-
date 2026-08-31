@@ -202,6 +202,9 @@ def set_hours_cb(key, val):
 def add_hours_cb(key, delta):
     st.session_state[key] = max(0.0, round(float(st.session_state[key]) + delta, 2))
 
+def reset_hours_cb(key):
+    st.session_state[key] = 0.0
+
 def add_count_cb(key, delta):
     st.session_state[key] = max(0, int(st.session_state[key]) + delta)
 
@@ -220,8 +223,9 @@ def submit_form_cb(cat_key, category_name):
 
     uph = round(count_val / hours_val, 2) if hours_val > 0 and not is_other_task(task_val) else 0
 
-    # 処理数を安全にリセット
+    # 登録完了後に処理数・時間をリセット
     st.session_state[f"count_val_{cat_key}"] = 0
+    st.session_state[f"hours_val_{cat_key}"] = 0.0
 
     msg_key = f"msg_{cat_key}"
     if is_other_task(task_val):
@@ -237,7 +241,7 @@ main_tab1, main_tab2, main_tab3, main_tab4, main_tab5, main_tab6 = st.tabs([
 ])
 
 # ==========================================
-# TAB 1: 作業実績入力（完全コールバック連動型）
+# TAB 1: 作業実績入力（加算ボタン形式UI）
 # ==========================================
 with main_tab1:
     st.subheader("日次作業実績の入力")
@@ -268,7 +272,7 @@ with main_tab1:
         if task_key not in st.session_state or st.session_state[task_key] not in tasks:
             st.session_state[task_key] = tasks[0]
         if hours_key not in st.session_state:
-            st.session_state[hours_key] = 1.0
+            st.session_state[hours_key] = 0.0
         if count_key not in st.session_state:
             st.session_state[count_key] = 0
 
@@ -292,17 +296,21 @@ with main_tab1:
         with col_left:
             st.markdown("##### ⏱️ **3. 稼働時間 (時間)**")
             
-            preset_hours = [0.5, 1.0, 2.0, 3.0, 4.0, 7.5]
-            btn_cols_h = st.columns(len(preset_hours))
-            for idx, ph in enumerate(preset_hours):
-                with btn_cols_h[idx]:
-                    st.button(f"{ph}h", key=f"btn_h_{cat_key}_{ph}", on_click=set_hours_cb, args=(hours_key, ph))
+            # 1行目: 小刻みボタン (+0.25h, +0.5h, +1.0h, +2.0h, +3.0h)
+            h_inc1 = [0.25, 0.5, 1.0, 2.0, 3.0]
+            btn_cols_h1 = st.columns(len(h_inc1))
+            for idx, inc in enumerate(h_inc1):
+                with btn_cols_h1[idx]:
+                    st.button(f"+{inc}h", key=f"btn_h1_{cat_key}_{inc}", on_click=add_hours_cb, args=(hours_key, inc))
 
-            adj_cols_h = st.columns(2)
-            with adj_cols_h[0]:
-                st.button("➖ 0.25時間減らす", key=f"btn_h_sub_{cat_key}", on_click=add_hours_cb, args=(hours_key, -0.25))
-            with adj_cols_h[1]:
-                st.button("➕ 0.25時間増やす", key=f"btn_h_add_{cat_key}", on_click=add_hours_cb, args=(hours_key, 0.25))
+            # 2行目: まとまった時間 (+4.0h, +5.0h, +6.0h, +7.0h, +8.0h, リセット)
+            h_inc2 = [4.0, 5.0, 6.0, 7.0, 8.0]
+            btn_cols_h2 = st.columns(6)
+            for idx, inc in enumerate(h_inc2):
+                with btn_cols_h2[idx]:
+                    st.button(f"+{inc}h", key=f"btn_h2_{cat_key}_{inc}", on_click=add_hours_cb, args=(hours_key, inc))
+            with btn_cols_h2[5]:
+                st.button("🔄 リセット", key=f"btn_h_reset_{cat_key}", on_click=reset_hours_cb, args=(hours_key,))
 
             st.number_input(
                 "稼働時間（手入力も可能）",
@@ -333,7 +341,7 @@ with main_tab1:
         st.text_input("備考・共有事項（任意）", key=f"n_{cat_key}")
 
         st.markdown("---")
-        # 登録実行ボタン（コールバックで実行）
+        # 登録実行ボタン
         st.button(
             f"✅ 【{category_name}】の実績を登録する",
             type="primary",
