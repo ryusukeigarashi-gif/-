@@ -135,6 +135,19 @@ def get_task_master():
 # 2. マスターデータ・基本設定
 # ---------------------------------------------------------
 st.set_page_config(page_title="作業処理数・可処分管理アプリ", layout="wide")
+
+st.markdown("""
+<style>
+div[data-testid="column"] {
+    padding: 0px 2px;
+}
+button {
+    width: 100%;
+    margin-bottom: 5px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("📦 可処分・作業処理数管理システム")
 
 CATEGORY_USER_MASTER = get_users_by_category()
@@ -223,7 +236,6 @@ def submit_form_cb(cat_key, category_name):
 
     uph = round(count_val / hours_val, 2) if hours_val > 0 and not is_other_task(task_val) else 0
 
-    # 登録完了後に処理数・時間をリセット
     st.session_state[f"count_val_{cat_key}"] = 0
     st.session_state[f"hours_val_{cat_key}"] = 0.0
 
@@ -241,7 +253,7 @@ main_tab1, main_tab2, main_tab3, main_tab4, main_tab5, main_tab6 = st.tabs([
 ])
 
 # ==========================================
-# TAB 1: 作業実績入力（加算ボタン形式UI）
+# TAB 1: 作業実績入力
 # ==========================================
 with main_tab1:
     st.subheader("日次作業実績の入力")
@@ -266,7 +278,6 @@ with main_tab1:
             st.warning(f"「{category_name}」の担当者または詳細作業が未登録です。「⚙️ マスタ管理」から追加してください。")
             return
 
-        # セッション初期化
         if user_key not in st.session_state or st.session_state[user_key] not in users:
             st.session_state[user_key] = users[0]
         if task_key not in st.session_state or st.session_state[task_key] not in tasks:
@@ -276,44 +287,45 @@ with main_tab1:
         if count_key not in st.session_state:
             st.session_state[count_key] = 0
 
-        # --- 1. 日付 & 担当者選択 ---
         st.markdown("##### 👤 **1. 日付と担当者を選択**")
         col_d, col_u = st.columns([1, 3])
         with col_d:
             st.date_input("作業日", date.today(), key=f"d_{cat_key}")
         with col_u:
-            st.radio("担当者名（タップで選択）", users, key=user_key, horizontal=True)
+            st.radio("担当者名", users, key=user_key, horizontal=True, label_visibility="collapsed")
 
         st.markdown("---")
-        # --- 2. 詳細作業選択 ---
         st.markdown("##### 📋 **2. 詳細作業を選択**")
-        st.radio("詳細作業名（タップで選択）", tasks, key=task_key, horizontal=True)
+        st.radio("詳細作業名", tasks, key=task_key, horizontal=True, label_visibility="collapsed")
 
         st.markdown("---")
-        # --- 3. 稼働時間 & 処理数 ---
         col_left, col_right = st.columns(2)
 
         with col_left:
             st.markdown("##### ⏱️ **3. 稼働時間 (時間)**")
             
-            # 1行目: 小刻みボタン (+0.25h, +0.5h, +1.0h, +2.0h, +3.0h)
             h_inc1 = [0.25, 0.5, 1.0, 2.0, 3.0]
             btn_cols_h1 = st.columns(len(h_inc1))
             for idx, inc in enumerate(h_inc1):
                 with btn_cols_h1[idx]:
                     st.button(f"+{inc}h", key=f"btn_h1_{cat_key}_{inc}", on_click=add_hours_cb, args=(hours_key, inc))
 
-            # 2行目: まとまった時間 (+4.0h, +5.0h, +6.0h, +7.0h, +8.0h, リセット)
             h_inc2 = [4.0, 5.0, 6.0, 7.0, 8.0]
-            btn_cols_h2 = st.columns(6)
+            btn_cols_h2 = st.columns(len(h_inc2))
             for idx, inc in enumerate(h_inc2):
                 with btn_cols_h2[idx]:
                     st.button(f"+{inc}h", key=f"btn_h2_{cat_key}_{inc}", on_click=add_hours_cb, args=(hours_key, inc))
-            with btn_cols_h2[5]:
+
+            btn_cols_h3 = st.columns(3)
+            with btn_cols_h3[0]:
+                st.button("➖ 0.25h", key=f"btn_h_sub_{cat_key}", on_click=add_hours_cb, args=(hours_key, -0.25))
+            with btn_cols_h3[1]:
+                st.button("➕ 0.25h", key=f"btn_h_add_{cat_key}", on_click=add_hours_cb, args=(hours_key, 0.25))
+            with btn_cols_h3[2]:
                 st.button("🔄 リセット", key=f"btn_h_reset_{cat_key}", on_click=reset_hours_cb, args=(hours_key,))
 
             st.number_input(
-                "稼働時間（手入力も可能）",
+                "（手入力も可能）",
                 min_value=0.0,
                 max_value=24.0,
                 step=0.25,
@@ -323,16 +335,18 @@ with main_tab1:
         with col_right:
             st.markdown("##### 🔢 **4. 処理数 (点/箱)**")
             
-            increments = [1, 10, 50, 100]
-            btn_cols_c = st.columns(5)
+            increments = [1, 5, 10, 50, 100]
+            btn_cols_c = st.columns(len(increments))
             for idx, inc in enumerate(increments):
                 with btn_cols_c[idx]:
                     st.button(f"+{inc}", key=f"btn_c_add_{cat_key}_{inc}", on_click=add_count_cb, args=(count_key, inc))
-            with btn_cols_c[4]:
-                st.button("🔄 リセット", key=f"btn_c_reset_{cat_key}", on_click=reset_count_cb, args=(count_key,))
+            
+            btn_cols_c2 = st.columns([4, 1])
+            with btn_cols_c2[1]:
+                st.button("🔄", key=f"btn_c_reset_{cat_key}", on_click=reset_count_cb, args=(count_key,))
 
             st.number_input(
-                "処理数（手入力も可能）",
+                "（手入力も可能）",
                 min_value=0,
                 step=1,
                 key=count_key
@@ -341,7 +355,6 @@ with main_tab1:
         st.text_input("備考・共有事項（任意）", key=f"n_{cat_key}")
 
         st.markdown("---")
-        # 登録実行ボタン
         st.button(
             f"✅ 【{category_name}】の実績を登録する",
             type="primary",
@@ -456,7 +469,6 @@ with main_tab1:
 with main_tab2:
     st.subheader("登録済み実績データの修正・削除")
     
-    # --- 1. 日付選択 ---
     st.markdown("##### 📅 1. 日付を選択してください")
     edit_filter_date = st.date_input("作業日", date.today(), key="edit_filter_d", label_visibility="collapsed")
     target_date_str = edit_filter_date.strftime("%Y-%m-%d")
@@ -470,15 +482,12 @@ with main_tab2:
     if df_date_edit.empty:
         st.info(f"{target_date_str} の実績データは登録されていません。")
     else:
-        # --- 2. データ選択 ---
         st.markdown("##### 🔍 2. 修正・削除したいデータを選択してください")
         
-        # 選択用のラベルを作成
         df_date_edit['label'] = df_date_edit.apply(
             lambda r: f"【{r['category']}】 {r['user_name']} ｜ {r['task_name']} ({r['work_hours']}h / {r['processed_count']}点)", axis=1
         )
         
-        # ラジオボタンで直感的に選択させる
         selected_label = st.radio(
             "登録データ一覧", 
             df_date_edit['label'].tolist(), 
@@ -486,7 +495,6 @@ with main_tab2:
             label_visibility="collapsed"
         )
         
-        # 選択された行のデータを取得
         target_row = df_date_edit[df_date_edit['label'] == selected_label].iloc[0]
         target_id = int(target_row['id'])
         current_date = datetime.strptime(target_row['work_date'], "%Y-%m-%d").date()
@@ -494,52 +502,43 @@ with main_tab2:
         
         st.markdown("---")
 
-        # --- 3. 選択中データの表示・編集エリア ---
         st.markdown(f"##### ✏️ 3. 選択中のデータ（ID: {target_id}）を編集")
         
-        # 枠で囲って見やすくする
         with st.container(border=True):
-            with st.form("edit_form"):
-                col_e1, col_e2, col_e3 = st.columns(3)
+            col_e1, col_e2, col_e3 = st.columns(3)
+            
+            with col_e1:
+                edit_date = st.date_input("作業日", current_date, key="edit_form_date")
+                edit_cat = st.selectbox("業務カテゴリ", ["商品情報", "撮影", "工程管理"], index=["商品情報", "撮影", "工程管理"].index(current_cat), key="edit_form_cat")
+            
+            with col_e2:
+                avail_users = CATEGORY_USER_MASTER.get(edit_cat, ALL_USERS)
+                avail_tasks = TASK_MASTER.get(edit_cat, ["通常作業"])
                 
-                with col_e1:
-                    edit_date = st.date_input("作業日", current_date, key="edit_form_date")
-                    edit_cat = st.selectbox("業務カテゴリ", ["商品情報", "撮影", "工程管理"], index=["商品情報", "撮影", "工程管理"].index(current_cat), key="edit_form_cat")
+                user_idx = avail_users.index(target_row['user_name']) if target_row['user_name'] in avail_users else 0
+                task_idx = avail_tasks.index(target_row['task_name']) if target_row['task_name'] in avail_tasks else 0
                 
-                with col_e2:
-                    avail_users = CATEGORY_USER_MASTER.get(edit_cat, ALL_USERS)
-                    avail_tasks = TASK_MASTER.get(edit_cat, ["通常作業"])
-                    
-                    user_idx = avail_users.index(target_row['user_name']) if target_row['user_name'] in avail_users else 0
-                    task_idx = avail_tasks.index(target_row['task_name']) if target_row['task_name'] in avail_tasks else 0
-                    
-                    edit_user = st.selectbox("担当者名", avail_users, index=user_idx, key="edit_form_user")
-                    edit_task = st.selectbox("詳細作業", avail_tasks, index=task_idx, key="edit_form_task")
-                    
-                with col_e3:
-                    edit_hours = st.number_input("稼働時間 (時間)", min_value=0.0, max_value=24.0, value=float(target_row['work_hours']), step=0.25, key="edit_form_hours")
-                    edit_count = st.number_input("処理数 (点/箱)", min_value=0, value=int(target_row['processed_count']), step=1, key="edit_form_count")
+                edit_user = st.selectbox("担当者名", avail_users, index=user_idx, key="edit_form_user")
+                edit_task = st.selectbox("詳細作業", avail_tasks, index=task_idx, key="edit_form_task")
                 
-                edit_notes = st.text_input("備考・共有事項", value=str(target_row['notes'] or ''), key="edit_form_notes")
+            with col_e3:
+                edit_hours = st.number_input("稼働時間 (時間)", min_value=0.0, max_value=24.0, value=float(target_row['work_hours']), step=0.25, key="edit_form_hours")
+                edit_count = st.number_input("処理数 (点/箱)", min_value=0, value=int(target_row['processed_count']), step=1, key="edit_form_count")
+            
+            edit_notes = st.text_input("備考・共有事項", value=str(target_row['notes'] or ''), key="edit_form_notes")
 
-                # 変更・削除ボタンを並べる
-                col_btn1, col_btn2 = st.columns([1, 1])
-                with col_btn1:
-                    btn_update = st.form_submit_button("💾 この内容で実績を上書き修正する", type="primary", use_container_width=True)
-                with col_btn2:
-                    # 削除ボタンは Form の中では submit 扱いになるため、別途処理
-                    btn_delete = st.form_submit_button("🗑️ このデータを完全に削除する", use_container_width=True)
-
-                if btn_update:
+            col_btn1, col_btn2 = st.columns([1, 1])
+            with col_btn1:
+                if st.button("💾 この内容で実績を上書き修正する", type="primary", use_container_width=True):
                     update_log(target_id, edit_date, edit_user, edit_cat, edit_task, edit_hours, edit_count, edit_notes)
                     st.success(f"ID:{target_id} の実績データを更新しました。")
                     st.rerun()
-
-                if btn_delete:
+            with col_btn2:
+                if st.button("🗑️ このデータを完全に削除する", use_container_width=True):
                     delete_log(target_id)
                     st.success(f"ID:{target_id} の実績データを削除しました。")
                     st.rerun()
-                    
+
 # ==========================================
 # TAB 3: 📊 業務別ダッシュボード
 # ==========================================
