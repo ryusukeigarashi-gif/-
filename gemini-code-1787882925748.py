@@ -194,6 +194,42 @@ def compute_summary_uph(df_agg):
     return df_agg
 
 # ---------------------------------------------------------
+# コールバック関数群 (セッション状態を安全に更新)
+# ---------------------------------------------------------
+def set_hours_cb(key, val):
+    st.session_state[key] = float(val)
+
+def add_hours_cb(key, delta):
+    st.session_state[key] = max(0.0, round(float(st.session_state[key]) + delta, 2))
+
+def add_count_cb(key, delta):
+    st.session_state[key] = max(0, int(st.session_state[key]) + delta)
+
+def reset_count_cb(key):
+    st.session_state[key] = 0
+
+def submit_form_cb(cat_key, category_name):
+    date_val = st.session_state[f"d_{cat_key}"]
+    user_val = st.session_state[f"user_sel_{cat_key}"]
+    task_val = st.session_state[f"task_sel_{cat_key}"]
+    hours_val = st.session_state[f"hours_val_{cat_key}"]
+    count_val = st.session_state[f"count_val_{cat_key}"]
+    notes_val = st.session_state.get(f"n_{cat_key}", "")
+
+    insert_log(date_val, user_val, category_name, task_val, hours_val, count_val, notes_val)
+
+    uph = round(count_val / hours_val, 2) if hours_val > 0 and not is_other_task(task_val) else 0
+
+    # 処理数を安全にリセット
+    st.session_state[f"count_val_{cat_key}"] = 0
+
+    msg_key = f"msg_{cat_key}"
+    if is_other_task(task_val):
+        st.session_state[msg_key] = f"🎉 {date_val} {user_val}さんの「{category_name}（{task_val}）」を登録しました。（その他業務として計上）"
+    else:
+        st.session_state[msg_key] = f"🎉 {date_val} {user_val}さんの「{category_name}（{task_val}）」を登録しました！（作業UPH: {uph}）"
+
+# ---------------------------------------------------------
 # 3. 画面構成
 # ---------------------------------------------------------
 main_tab1, main_tab2, main_tab3, main_tab4, main_tab5, main_tab6 = st.tabs([
@@ -201,7 +237,7 @@ main_tab1, main_tab2, main_tab3, main_tab4, main_tab5, main_tab6 = st.tabs([
 ])
 
 # ==========================================
-# TAB 1: 作業実績入力（直感型ボタンレイアウト修正版）
+# TAB 1: 作業実績入力（完全コールバック連動型）
 # ==========================================
 with main_tab1:
     st.subheader("日次作業実績の入力")
@@ -240,14 +276,14 @@ with main_tab1:
         st.markdown("##### 👤 **1. 日付と担当者を選択**")
         col_d, col_u = st.columns([1, 3])
         with col_d:
-            val_date = st.date_input("作業日", date.today(), key=f"d_{cat_key}")
+            st.date_input("作業日", date.today(), key=f"d_{cat_key}")
         with col_u:
-            val_user = st.radio("担当者名（タップで選択）", users, key=user_key, horizontal=True)
+            st.radio("担当者名（タップで選択）", users, key=user_key, horizontal=True)
 
         st.markdown("---")
         # --- 2. 詳細作業選択 ---
         st.markdown("##### 📋 **2. 詳細作業を選択**")
-        val_task = st.radio("詳細作業名（タップで選択）", tasks, key=task_key, horizontal=True)
+        st.radio("詳細作業名（タップで選択）", tasks, key=task_key, horizontal=True)
 
         st.markdown("---")
         # --- 3. 稼働時間 & 処理数 ---
@@ -260,21 +296,15 @@ with main_tab1:
             btn_cols_h = st.columns(len(preset_hours))
             for idx, ph in enumerate(preset_hours):
                 with btn_cols_h[idx]:
-                    if st.button(f"{ph}h", key=f"btn_h_{cat_key}_{ph}"):
-                        st.session_state[hours_key] = float(ph)
-                        st.rerun()
+                    st.button(f"{ph}h", key=f"btn_h_{cat_key}_{ph}", on_click=set_hours_cb, args=(hours_key, ph))
 
             adj_cols_h = st.columns(2)
             with adj_cols_h[0]:
-                if st.button("➖ 0.25時間減らす", key=f"btn_h_sub_{cat_key}"):
-                    st.session_state[hours_key] = max(0.0, round(st.session_state[hours_key] - 0.25, 2))
-                    st.rerun()
+                st.button("➖ 0.25時間減らす", key=f"btn_h_sub_{cat_key}", on_click=add_hours_cb, args=(hours_key, -0.25))
             with adj_cols_h[1]:
-                if st.button("➕ 0.25時間増やす", key=f"btn_h_add_{cat_key}"):
-                    st.session_state[hours_key] = round(st.session_state[hours_key] + 0.25, 2)
-                    st.rerun()
+                st.button("➕ 0.25時間増やす", key=f"btn_h_add_{cat_key}", on_click=add_hours_cb, args=(hours_key, 0.25))
 
-            val_hours = st.number_input(
+            st.number_input(
                 "稼働時間（手入力も可能）",
                 min_value=0.0,
                 max_value=24.0,
@@ -289,38 +319,29 @@ with main_tab1:
             btn_cols_c = st.columns(5)
             for idx, inc in enumerate(increments):
                 with btn_cols_c[idx]:
-                    if st.button(f"+{inc}", key=f"btn_c_add_{cat_key}_{inc}"):
-                        st.session_state[count_key] = int(st.session_state[count_key]) + inc
-                        st.rerun()
+                    st.button(f"+{inc}", key=f"btn_c_add_{cat_key}_{inc}", on_click=add_count_cb, args=(count_key, inc))
             with btn_cols_c[4]:
-                if st.button("🔄 リセット", key=f"btn_c_reset_{cat_key}"):
-                    st.session_state[count_key] = 0
-                    st.rerun()
+                st.button("🔄 リセット", key=f"btn_c_reset_{cat_key}", on_click=reset_count_cb, args=(count_key,))
 
-            val_count = st.number_input(
+            st.number_input(
                 "処理数（手入力も可能）",
                 min_value=0,
                 step=1,
                 key=count_key
             )
 
-        val_notes = st.text_input("備考・共有事項（任意）", key=f"n_{cat_key}")
+        st.text_input("備考・共有事項（任意）", key=f"n_{cat_key}")
 
         st.markdown("---")
-        # 登録実行ボタン
-        if st.button(f"✅ 【{category_name}】の実績を登録する", type="primary", use_container_width=True, key=f"btn_submit_{cat_key}"):
-            insert_log(val_date, val_user, category_name, val_task, val_hours, val_count, val_notes)
-            
-            uph = round(val_count / val_hours, 2) if val_hours > 0 and not is_other_task(val_task) else 0
-            
-            # 登録完了後は処理数のみクリア（担当者・作業・時間は保持）
-            st.session_state[count_key] = 0
-            
-            if is_other_task(val_task):
-                st.session_state[msg_key] = f"🎉 {val_date} {val_user}さんの「{category_name}（{val_task}）」を登録しました。（その他業務として計上）"
-            else:
-                st.session_state[msg_key] = f"🎉 {val_date} {val_user}さんの「{category_name}（{val_task}）」を登録しました！（作業UPH: {uph}）"
-            st.rerun()
+        # 登録実行ボタン（コールバックで実行）
+        st.button(
+            f"✅ 【{category_name}】の実績を登録する",
+            type="primary",
+            use_container_width=True,
+            key=f"btn_submit_{cat_key}",
+            on_click=submit_form_cb,
+            args=(cat_key, category_name)
+        )
 
     with input_tab1:
         render_intuitive_input_form("s", "商品情報")
