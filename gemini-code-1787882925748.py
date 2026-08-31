@@ -456,78 +456,90 @@ with main_tab1:
 with main_tab2:
     st.subheader("登録済み実績データの修正・削除")
     
-    edit_filter_date = st.date_input("修正・削除したいデータの作業日を選択してください", date.today(), key="edit_filter_d")
+    # --- 1. 日付選択 ---
+    st.markdown("##### 📅 1. 日付を選択してください")
+    edit_filter_date = st.date_input("作業日", date.today(), key="edit_filter_d", label_visibility="collapsed")
     target_date_str = edit_filter_date.strftime("%Y-%m-%d")
     
     conn = sqlite3.connect(DB_FILE)
     df_date_edit = pd.read_sql_query("SELECT * FROM daily_logs WHERE work_date = ? ORDER BY id DESC", conn, params=[target_date_str])
     conn.close()
 
+    st.markdown("---")
+
     if df_date_edit.empty:
-        st.info(f"{target_date_str} の実績データは登録されていません。上の日付選択ボックスで別の日付を選択してください。")
+        st.info(f"{target_date_str} の実績データは登録されていません。")
     else:
-        st.markdown(f"##### 📋 **{target_date_str} の登録データ一覧**")
+        # --- 2. データ選択 ---
+        st.markdown("##### 🔍 2. 修正・削除したいデータを選択してください")
         
-        df_date_edit['is_other'] = df_date_edit['task_name'].astype(str).str.contains("その他")
-        df_date_edit['task_uph'] = df_date_edit.apply(lambda r: 0 if r['is_other'] else round(r['processed_count'] / r['work_hours'], 2) if r['work_hours'] > 0 else 0, axis=1)
-        df_date_edit['actual_uph'] = df_date_edit.apply(lambda r: round(r['processed_count'] / r['work_hours'], 2) if r['work_hours'] > 0 else 0, axis=1)
-
-        cols_order_e = ['id', 'work_date', 'user_name', 'category', 'task_name', 'work_hours', 'processed_count', 'task_uph', 'actual_uph', 'notes']
-        st.dataframe(df_date_edit[cols_order_e].rename(columns=COLUMN_JAPANESE_MAP), use_container_width=True)
-        
-        st.markdown("---")
-        st.markdown("##### ✏️ **修正または削除するデータの選択**")
-
+        # 選択用のラベルを作成
         df_date_edit['label'] = df_date_edit.apply(
-            lambda r: f"ID:{r['id']} | 担当者:{r['user_name']} | 業務:{r['category']} - {r['task_name']} ({r['work_hours']}h / {r['processed_count']}点)", axis=1
+            lambda r: f"【{r['category']}】 {r['user_name']} ｜ {r['task_name']} ({r['work_hours']}h / {r['processed_count']}点)", axis=1
         )
         
-        selected_label = st.selectbox("上記一覧から変更・削除対象のデータ（ID）を選択してください", df_date_edit['label'].tolist(), key="edit_select_box")
-        target_row = df_date_edit[df_date_edit['label'] == selected_label].iloc[0]
+        # ラジオボタンで直感的に選択させる
+        selected_label = st.radio(
+            "登録データ一覧", 
+            df_date_edit['label'].tolist(), 
+            key="edit_select_radio",
+            label_visibility="collapsed"
+        )
         
+        # 選択された行のデータを取得
+        target_row = df_date_edit[df_date_edit['label'] == selected_label].iloc[0]
         target_id = int(target_row['id'])
         current_date = datetime.strptime(target_row['work_date'], "%Y-%m-%d").date()
         current_cat = target_row['category'] if target_row['category'] in ["商品情報", "撮影", "工程管理"] else "商品情報"
         
-        st.markdown(f"**選択中のデータ [ID: {target_id}]**")
-        
-        with st.form("edit_form"):
-            col_e1, col_e2, col_e3 = st.columns(3)
-            with col_e1:
-                edit_date = st.date_input("作業日", current_date, key="edit_form_date")
-                edit_cat = st.selectbox("業務カテゴリ", ["商品情報", "撮影", "工程管理"], index=["商品情報", "撮影", "工程管理"].index(current_cat), key="edit_form_cat")
-            
-            with col_e2:
-                avail_users = CATEGORY_USER_MASTER.get(edit_cat, ALL_USERS)
-                avail_tasks = TASK_MASTER.get(edit_cat, ["通常作業"])
-                
-                user_idx = avail_users.index(target_row['user_name']) if target_row['user_name'] in avail_users else 0
-                task_idx = avail_tasks.index(target_row['task_name']) if target_row['task_name'] in avail_tasks else 0
-                
-                edit_user = st.selectbox("担当者名", avail_users, index=user_idx, key="edit_form_user")
-                edit_task = st.selectbox("詳細作業", avail_tasks, index=task_idx, key="edit_form_task")
-                
-            with col_e3:
-                edit_hours = st.number_input("稼働時間 (時間)", min_value=0.0, max_value=24.0, value=float(target_row['work_hours']), step=0.25, key="edit_form_hours")
-                edit_count = st.number_input("処理数 (点/箱)", min_value=0, value=int(target_row['processed_count']), step=1, key="edit_form_count")
-            
-            edit_notes = st.text_input("備考・共有事項", value=str(target_row['notes'] or ''), key="edit_form_notes")
-
-            btn_update = st.form_submit_button("✏️ この内容で実績を更新する")
-            if btn_update:
-                update_log(target_id, edit_date, edit_user, edit_cat, edit_task, edit_hours, edit_count, edit_notes)
-                st.success(f"ID:{target_id} の実績データを更新しました。")
-                st.rerun()
-
         st.markdown("---")
-        st.markdown("**データの削除（取り消し）**")
-        col_del1, col_del2 = st.columns([1, 4])
-        with col_del1:
-            if st.button("🗑️ 選択中のデータを削除する", type="primary", key="btn_del_data"):
-                delete_log(target_id)
-                st.success(f"ID:{target_id} の実績データを削除しました。")
-                st.rerun()
 
+        # --- 3. 選択中データの表示・編集エリア ---
+        st.markdown(f"##### ✏️ 3. 選択中のデータ（ID: {target_id}）を編集")
+        
+        # 枠で囲って見やすくする
+        with st.container(border=True):
+            with st.form("edit_form"):
+                col_e1, col_e2, col_e3 = st.columns(3)
+                
+                with col_e1:
+                    edit_date = st.date_input("作業日", current_date, key="edit_form_date")
+                    edit_cat = st.selectbox("業務カテゴリ", ["商品情報", "撮影", "工程管理"], index=["商品情報", "撮影", "工程管理"].index(current_cat), key="edit_form_cat")
+                
+                with col_e2:
+                    avail_users = CATEGORY_USER_MASTER.get(edit_cat, ALL_USERS)
+                    avail_tasks = TASK_MASTER.get(edit_cat, ["通常作業"])
+                    
+                    user_idx = avail_users.index(target_row['user_name']) if target_row['user_name'] in avail_users else 0
+                    task_idx = avail_tasks.index(target_row['task_name']) if target_row['task_name'] in avail_tasks else 0
+                    
+                    edit_user = st.selectbox("担当者名", avail_users, index=user_idx, key="edit_form_user")
+                    edit_task = st.selectbox("詳細作業", avail_tasks, index=task_idx, key="edit_form_task")
+                    
+                with col_e3:
+                    edit_hours = st.number_input("稼働時間 (時間)", min_value=0.0, max_value=24.0, value=float(target_row['work_hours']), step=0.25, key="edit_form_hours")
+                    edit_count = st.number_input("処理数 (点/箱)", min_value=0, value=int(target_row['processed_count']), step=1, key="edit_form_count")
+                
+                edit_notes = st.text_input("備考・共有事項", value=str(target_row['notes'] or ''), key="edit_form_notes")
+
+                # 変更・削除ボタンを並べる
+                col_btn1, col_btn2 = st.columns([1, 1])
+                with col_btn1:
+                    btn_update = st.form_submit_button("💾 この内容で実績を上書き修正する", type="primary", use_container_width=True)
+                with col_btn2:
+                    # 削除ボタンは Form の中では submit 扱いになるため、別途処理
+                    btn_delete = st.form_submit_button("🗑️ このデータを完全に削除する", use_container_width=True)
+
+                if btn_update:
+                    update_log(target_id, edit_date, edit_user, edit_cat, edit_task, edit_hours, edit_count, edit_notes)
+                    st.success(f"ID:{target_id} の実績データを更新しました。")
+                    st.rerun()
+
+                if btn_delete:
+                    delete_log(target_id)
+                    st.success(f"ID:{target_id} の実績データを削除しました。")
+                    st.rerun()
+                    
 # ==========================================
 # TAB 3: 📊 業務別ダッシュボード
 # ==========================================
