@@ -171,7 +171,7 @@ def update_log(log_id, work_date, user_name, category, task_name, work_hours, pr
         UPDATE daily_logs 
         SET work_date = ?, user_name = ?, category = ?, task_name = ?, work_hours = ?, processed_count = ?, notes = ?
         WHERE id = ?
-    ''', (pd.to_datetime(work_date).strftime("%Y-%m-%d"), user_name, category, task_name, float(work_hours), int(processed_count), str(notes), log_id))
+    ''', (work_date.strftime("%Y-%m-%d"), user_name, category, task_name, float(work_hours), int(processed_count), str(notes), log_id))
     conn.commit()
     conn.close()
 
@@ -207,7 +207,7 @@ def compute_summary_uph(df_agg):
     return df_agg
 
 # ---------------------------------------------------------
-# コールバック関数群
+# コールバック関数群 (セッション状態を安全に更新)
 # ---------------------------------------------------------
 def set_hours_cb(key, val):
     st.session_state[key] = float(val)
@@ -464,7 +464,7 @@ with main_tab1:
         st.info(f"{chk_date.strftime('%Y-%m-%d')} に登録されているデータはありません。")
 
 # ==========================================
-# TAB 2: ✏️ 登録実績の修正・削除（動的連動型修正版）
+# TAB 2: ✏️ 登録実績の修正・削除（データ完全連動版）
 # ==========================================
 with main_tab2:
     st.subheader("登録済み実績データの修正・削除")
@@ -505,7 +505,6 @@ with main_tab2:
         st.markdown("---")
         st.markdown(f"##### ✏️ 3. 選択中のデータ（ID: {target_id}）を編集")
         
-        # 動的キー (target_id付き) により、2で選択データを変えた瞬間に下部へ即座に反映される
         with st.container(border=True):
             col_e1, col_e2, col_e3 = st.columns(3)
             
@@ -514,19 +513,25 @@ with main_tab2:
                 
                 cat_list = ["商品情報", "撮影", "工程管理"]
                 cat_idx = cat_list.index(current_cat) if current_cat in cat_list else 0
+                
+                # keyに target_id を含めることで、選択が変わるたびに再描画され正しい初期値が表示されます
                 edit_cat = st.selectbox("業務カテゴリ", cat_list, index=cat_idx, key=f"edit_cat_{target_id}")
             
             with col_e2:
+                # ユーザーリストの取得と現在値の紐付け
                 avail_users = CATEGORY_USER_MASTER.get(edit_cat, ALL_USERS).copy()
                 if curr_user not in avail_users:
                     avail_users.insert(0, curr_user)
                 user_idx = avail_users.index(curr_user)
+                
                 edit_user = st.selectbox("担当者名", avail_users, index=user_idx, key=f"edit_user_{target_id}")
                 
+                # 詳細作業リストの取得と現在値の紐付け
                 avail_tasks = TASK_MASTER.get(edit_cat, ["通常作業"]).copy()
                 if curr_task not in avail_tasks:
                     avail_tasks.insert(0, curr_task)
                 task_idx = avail_tasks.index(curr_task)
+                
                 edit_task = st.selectbox("詳細作業", avail_tasks, index=task_idx, key=f"edit_task_{target_id}")
                 
             with col_e3:
