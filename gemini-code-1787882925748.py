@@ -146,21 +146,21 @@ def get_task_master():
     return task_dict
 
 # ---------------------------------------------------------
-# 2. マスターデータ・基本設定 (合計集計値のみ約3倍CSS適用)
+# 2. マスターデータ・基本設定 (合計集計値のフォント指定：特大かつ太文字解除)
 # ---------------------------------------------------------
 st.set_page_config(page_title="作業処理数・可処分管理アプリ", layout="wide")
 
 st.markdown("""
 <style>
-/* 合計集計値（st.metric）の数値とラベルのみを約3倍の特大表示 */
+/* 合計集計値（st.metric）の数値とラベル：特大サイズ＆標準の太さ（太字解除） */
 div[data-testid="stMetricValue"] {
     font-size: 3.8rem !important;
-    font-weight: 900 !important;
+    font-weight: normal !important;
     line-height: 1.1 !important;
 }
 div[data-testid="stMetricLabel"] {
     font-size: 1.6rem !important;
-    font-weight: bold !important;
+    font-weight: normal !important;
 }
 
 /* カラム余白調整 */
@@ -170,7 +170,7 @@ div[data-testid="column"] {
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📦 可処分・作業処理数管理システム")
+st.title("可処分・作業処理数管理システム")
 
 CATEGORY_USER_MASTER = get_users_by_category()
 ALL_USERS = get_all_users()
@@ -263,9 +263,9 @@ def submit_form_cb(cat_key, category_name):
 
     msg_key = f"msg_{cat_key}"
     if is_other_task(task_val):
-        st.session_state[msg_key] = f"🎉 {date_val} {user_val}さんの「{category_name}（{task_val}）」を登録しました。（その他業務として計上）"
+        st.session_state[msg_key] = f"{date_val} {user_val}さんの「{category_name}（{task_val}）」を登録しました。（その他業務として計上）"
     else:
-        st.session_state[msg_key] = f"🎉 {date_val} {user_val}さんの「{category_name}（{task_val}）」を登録しました！（作業UPH: {uph}）"
+        st.session_state[msg_key] = f"{date_val} {user_val}さんの「{category_name}（{task_val}）」を登録しました！（作業UPH: {uph}）"
 
 def reorder_master_items(table_name, category_name, item_id, direction):
     conn = sqlite3.connect(DB_FILE)
@@ -290,7 +290,7 @@ def reorder_master_items(table_name, category_name, item_id, direction):
 # 3. 画面構成
 # ---------------------------------------------------------
 main_tab1, main_tab2, main_tab3, main_tab4, main_tab5, main_tab6 = st.tabs([
-    "📝 作業実績入力", "✏️ 登録実績の修正・削除", "📊 業務別ダッシュボード", "📈 個人・UPH分析", "⚙️ マスタ管理", "📥 CSV一括取り込み"
+    "作業実績入力", "登録実績の修正・削除", "業務別ダッシュボード", "個人・UPH分析", "マスタ管理", "CSV一括取り込み"
 ])
 
 # ==========================================
@@ -299,7 +299,7 @@ main_tab1, main_tab2, main_tab3, main_tab4, main_tab5, main_tab6 = st.tabs([
 with main_tab1:
     st.subheader("日次作業実績の入力")
     
-    input_tab1, input_tab2, input_tab3 = st.tabs(["💻 商品情報", "📸 撮影", "📦 工程管理"])
+    input_tab1, input_tab2, input_tab3 = st.tabs(["商品情報", "撮影", "工程管理"])
 
     def render_intuitive_input_form(cat_key, category_name):
         users = CATEGORY_USER_MASTER.get(category_name, [])
@@ -316,7 +316,7 @@ with main_tab1:
             st.session_state[msg_key] = ""
 
         if not users or not tasks:
-            st.warning(f"「{category_name}」の担当者または詳細作業が未登録です。「⚙️ マスタ管理」から追加してください。")
+            st.warning(f"「{category_name}」の担当者または詳細作業が未登録です。「マスタ管理」から追加してください。")
             return
 
         if user_key not in st.session_state or st.session_state[user_key] not in users:
@@ -328,7 +328,7 @@ with main_tab1:
         if count_key not in st.session_state:
             st.session_state[count_key] = 0
 
-        st.markdown("##### 👤 **1. 日付と担当者を選択**")
+        st.markdown("##### 1. 日付と担当者を選択")
         col_d, col_u = st.columns([1, 3])
         with col_d:
             st.date_input("作業日", date.today(), key=f"d_{cat_key}")
@@ -336,14 +336,14 @@ with main_tab1:
             st.radio("担当者名", users, key=user_key, horizontal=True, label_visibility="collapsed")
 
         st.markdown("---")
-        st.markdown("##### 📋 **2. 詳細作業を選択**")
+        st.markdown("##### 2. 詳細作業を選択")
         st.radio("詳細作業名", tasks, key=task_key, horizontal=True, label_visibility="collapsed")
 
         st.markdown("---")
         col_left, col_right = st.columns(2)
 
         with col_left:
-            st.markdown("##### ⏱️ **3. 稼働時間 (時間)**")
+            st.markdown("##### 3. 稼働時間 (時間)")
             
             h_inc1 = [0.25, 0.5, 1.0, 2.0, 3.0]
             btn_cols_h1 = st.columns(len(h_inc1))
@@ -363,7 +363,7 @@ with main_tab1:
             with btn_cols_h3[1]:
                 st.button("➕ 0.25h", key=f"btn_h_add_{cat_key}", on_click=add_hours_cb, args=(hours_key, 0.25))
             with btn_cols_h3[2]:
-                st.button("🔄 リセット", key=f"btn_h_reset_{cat_key}", on_click=reset_hours_cb, args=(hours_key,))
+                st.button("リセット", key=f"btn_h_reset_{cat_key}", on_click=reset_hours_cb, args=(hours_key,))
 
             st.number_input(
                 "（手入力も可能）",
@@ -374,7 +374,7 @@ with main_tab1:
             )
 
         with col_right:
-            st.markdown("##### 🔢 **4. 処理数 (点/箱)**")
+            st.markdown("##### 4. 処理数 (点/箱)")
             
             increments = [1, 5, 10, 50, 100]
             btn_cols_c = st.columns(len(increments))
@@ -384,7 +384,7 @@ with main_tab1:
             
             btn_cols_c2 = st.columns([4, 1])
             with btn_cols_c2[1]:
-                st.button("🔄", key=f"btn_c_reset_{cat_key}", on_click=reset_count_cb, args=(count_key,))
+                st.button("リセット", key=f"btn_c_reset_{cat_key}", on_click=reset_count_cb, args=(count_key,))
 
             st.number_input(
                 "（手入力も可能）",
@@ -397,7 +397,7 @@ with main_tab1:
 
         st.markdown("---")
         st.button(
-            f"✅ 【{category_name}】の実績を登録する",
+            f"【{category_name}】の実績を登録する",
             type="primary",
             use_container_width=True,
             key=f"btn_submit_{cat_key}",
@@ -415,7 +415,7 @@ with main_tab1:
         render_intuitive_input_form("k", "工程管理")
 
     st.markdown("---")
-    st.subheader("🔍 個人・日別入力確認（業務別内訳）")
+    st.subheader("個人・日別入力確認（業務別内訳）")
     
     col_chk1, col_chk2 = st.columns(2)
     with col_chk1:
@@ -458,7 +458,7 @@ with main_tab1:
         cols_order = ['id', 'work_date', 'user_name', 'category', 'task_name', 'work_hours', 'processed_count', 'task_uph', 'actual_uph', 'notes']
 
         chk_tab_all, chk_tab_s, chk_tab_p, chk_tab_k = st.tabs([
-            "🌐 全体明細", "💻 商品情報", "📸 撮影", "📦 工程管理"
+            "全体明細", "商品情報", "撮影", "工程管理"
         ])
 
         with chk_tab_all:
@@ -475,7 +475,7 @@ with main_tab1:
             m3.metric("【全体】作業UPH", f"{avg_task_uph:.2f}")
             m4.metric("【全体】実質UPH", f"{avg_act_uph:.2f}")
 
-            st.markdown("##### 📝 明細データ一覧")
+            st.markdown("##### 明細データ一覧")
             df_day_user_jp = df_day_user[cols_order].rename(columns=COLUMN_JAPANESE_MAP)
             st.dataframe(df_day_user_jp, use_container_width=True)
 
@@ -496,7 +496,7 @@ with main_tab1:
                     sm3.metric(f"【{cat_title}】作業UPH", f"{sub_task_uph:.2f}")
                     sm4.metric(f"【{cat_title}】実質UPH", f"{sub_act_uph:.2f}")
 
-                    st.markdown("##### 📝 明細データ一覧")
+                    st.markdown("##### 明細データ一覧")
                     df_sub_jp = df_sub[cols_order].rename(columns=COLUMN_JAPANESE_MAP)
                     st.dataframe(df_sub_jp, use_container_width=True)
                 else:
@@ -510,7 +510,7 @@ with main_tab1:
 with main_tab2:
     st.subheader("登録済み実績データの修正・削除")
     
-    st.markdown("##### 📅 1. 日付を選択してください")
+    st.markdown("##### 1. 日付を選択してください")
     edit_filter_date = st.date_input("作業日", date.today(), key="edit_filter_d", label_visibility="collapsed")
     target_date_str = edit_filter_date.strftime("%Y-%m-%d")
     
@@ -523,7 +523,7 @@ with main_tab2:
     if df_date_edit.empty:
         st.info(f"{target_date_str} の実績データは登録されていません。")
     else:
-        st.markdown("##### 🔍 2. 修正・削除したいデータを選択してください")
+        st.markdown("##### 2. 修正・削除したいデータを選択してください")
         
         df_date_edit['label'] = df_date_edit.apply(
             lambda r: f"【{r['category']}】 {r['user_name']} ｜ {r['task_name']} ({r['work_hours']}h / {r['processed_count']}点)", axis=1
@@ -544,7 +544,7 @@ with main_tab2:
         curr_task = str(target_row['task_name'])
         
         st.markdown("---")
-        st.markdown(f"##### ✏️ 3. 選択中のデータ（ID: {target_id}）を編集")
+        st.markdown(f"##### 3. 選択中のデータ（ID: {target_id}）を編集")
         
         k_date = f"e_date_{target_id}"
         k_cat = f"e_cat_{target_id}"
@@ -603,12 +603,12 @@ with main_tab2:
 
             col_btn1, col_btn2 = st.columns([1, 1])
             with col_btn1:
-                if st.button("💾 この内容で実績を上書き修正する", type="primary", use_container_width=True, key=f"btn_upd_{target_id}"):
+                if st.button("この内容で実績を上書き修正する", type="primary", use_container_width=True, key=f"btn_upd_{target_id}"):
                     update_log(target_id, edit_date, edit_user, edit_cat, edit_task, edit_hours, edit_count, edit_notes)
                     st.success(f"ID:{target_id} の実績データを更新しました。")
                     st.rerun()
             with col_btn2:
-                if st.button("🗑️ このデータを完全に削除する", use_container_width=True, key=f"btn_del_{target_id}"):
+                if st.button("このデータを完全に削除する", use_container_width=True, key=f"btn_del_{target_id}"):
                     delete_log(target_id)
                     st.success(f"ID:{target_id} の実績データを削除しました。")
                     st.rerun()
@@ -644,7 +644,7 @@ with main_tab3:
             (pd.to_datetime(df_dash['work_date']).dt.date <= end_d)
         ]
 
-        d_tab_all, d_tab1, d_tab2, d_tab3 = st.tabs(["🌐 全体サマリー", "💻 商品情報", "📸 撮影", "📦 工程管理"])
+        d_tab_all, d_tab1, d_tab2, d_tab3 = st.tabs(["全体サマリー", "商品情報", "撮影", "工程管理"])
 
         def render_category_dashboard(df_cat, category_name):
             if df_cat.empty:
@@ -668,7 +668,7 @@ with main_tab3:
             col_left, col_right = st.columns(2)
 
             with col_left:
-                st.markdown("#### 📋 詳細作業別 集計表")
+                st.markdown("#### 詳細作業別 集計表")
                 sum_task = df_cat.groupby('task_name').agg(
                     work_hours=('work_hours', 'sum'),
                     other_hours=('other_hours', 'sum'),
@@ -681,7 +681,7 @@ with main_tab3:
                 st.dataframe(sum_task.rename(columns={'task_name': '詳細作業', 'work_hours': '総稼働時間', 'processed_count': '処理数'})[['詳細作業', '総稼働時間', '処理数', '作業UPH', '実質UPH']], use_container_width=True)
 
             with col_right:
-                st.markdown("#### 👤 担当者別 集計表")
+                st.markdown("#### 担当者別 集計表")
                 sum_user = df_cat.groupby('user_name').agg(
                     work_hours=('work_hours', 'sum'),
                     other_hours=('other_hours', 'sum'),
@@ -690,7 +690,7 @@ with main_tab3:
                 sum_user = compute_summary_uph(sum_user)
                 st.dataframe(sum_user.rename(columns={'user_name': '担当者名', 'work_hours': '総稼働時間', 'valid_processed_count': '処理数(アパ除)'})[['担当者名', '総稼働時間', '処理数(アパ除)', '作業UPH', '実質UPH']], use_container_width=True)
 
-            st.markdown("#### 📈 詳細作業別 累計処理数")
+            st.markdown("#### 詳細作業別 累計処理数")
             fig_task = px.bar(sum_task, x='task_name', y='processed_count', text_auto=True,
                               title=f"「{category_name}」詳細作業別 処理数",
                               labels={'task_name': '詳細作業', 'processed_count': '処理数'})
@@ -766,7 +766,7 @@ with main_tab4:
         df_user['task_uph'] = df_user.apply(lambda r: 0 if r['is_other'] else round(r['processed_count'] / r['work_hours'], 2) if r['work_hours'] > 0 else 0, axis=1)
         df_user['actual_uph'] = df_user.apply(lambda r: round(r['processed_count'] / r['work_hours'], 2) if r['work_hours'] > 0 else 0, axis=1)
 
-        st.markdown(f"#### 👤 {selected_user} さんの業務別・日別稼働内訳サマリー")
+        st.markdown(f"#### {selected_user} さんの業務別・日別稼働内訳サマリー")
         
         df_user_cat_daily = df_user.groupby(['work_date', 'category']).agg(
             work_hours=('work_hours', 'sum'),
@@ -779,7 +779,7 @@ with main_tab4:
 
         st.dataframe(df_user_cat_daily[['作業日', '業務カテゴリ', '稼働時間', '処理数(アパ除)', '作業UPH', '実質UPH']].sort_values(['作業日', '業務カテゴリ'], ascending=[False, True]), use_container_width=True)
 
-        st.markdown(f"#### 📝 {selected_user} さんの全詳細入力履歴")
+        st.markdown(f"#### {selected_user} さんの全詳細入力履歴")
         cols_order_u = ['work_date', 'category', 'task_name', 'work_hours', 'processed_count', 'task_uph', 'actual_uph', 'notes']
         df_user_jp = df_user[cols_order_u].rename(columns=COLUMN_JAPANESE_MAP)
         st.dataframe(df_user_jp.sort_values('作業日', ascending=False), use_container_width=True)
@@ -797,7 +797,7 @@ with main_tab4:
 with main_tab5:
     st.subheader("選択肢マスタの編集・並び替え")
     
-    m_tab1, m_tab2 = st.tabs(["👤 業務別担当者マスタ", "📋 詳細作業マスタ"])
+    m_tab1, m_tab2 = st.tabs(["業務別担当者マスタ", "詳細作業マスタ"])
 
     categories_list = ["商品情報", "撮影", "工程管理"]
 
@@ -812,10 +812,10 @@ with main_tab5:
         col_u1, col_u2 = st.columns([1, 2])
         
         with col_u1:
-            st.markdown("**◆ 新規追加**")
+            st.markdown("◆ 新規追加")
             target_cat_u_add = st.radio("対象業務カテゴリ", categories_list, key="add_u_cat_radio", horizontal=True)
             new_user_name = st.text_input("担当者名を入力", key="add_u_name")
-            if st.button("➕ 追加する", key="btn_add_user"):
+            if st.button("追加する", key="btn_add_user"):
                 if new_user_name.strip():
                     conn = sqlite3.connect(DB_FILE)
                     c = conn.cursor()
@@ -832,7 +832,7 @@ with main_tab5:
                         conn.close()
 
         with col_u2:
-            st.markdown("**◆ 登録済み一覧 ＆ 削除・並び替え**")
+            st.markdown("◆ 登録済み一覧 ＆ 削除・並び替え")
             target_cat_u_edit = st.radio("表示する業務カテゴリ", categories_list, key="edit_u_cat_radio", horizontal=True)
             
             df_u_cat = df_users[df_users['category'] == target_cat_u_edit].copy()
@@ -840,7 +840,7 @@ with main_tab5:
                 for i in range(len(df_u_cat)):
                     row = df_u_cat.iloc[i]
                     cols = st.columns([5, 1, 1, 2])
-                    cols[0].markdown(f"**{row['name']}**")
+                    cols[0].markdown(f"{row['name']}")
                     
                     if cols[1].button("⬆️", key=f"u_up_{row['id']}") and i > 0:
                         reorder_master_items('category_user_master', target_cat_u_edit, int(row['id']), "up")
@@ -850,7 +850,7 @@ with main_tab5:
                         reorder_master_items('category_user_master', target_cat_u_edit, int(row['id']), "down")
                         st.rerun()
                         
-                    if cols[3].button("🗑️ 削除", key=f"u_del_{row['id']}"):
+                    if cols[3].button("削除", key=f"u_del_{row['id']}"):
                         conn = sqlite3.connect(DB_FILE)
                         c = conn.cursor()
                         c.execute("DELETE FROM category_user_master WHERE id = ?", (int(row['id']),))
@@ -871,10 +871,10 @@ with main_tab5:
         col_t1, col_t2 = st.columns([1, 2])
         
         with col_t1:
-            st.markdown("**◆ 新規追加**")
+            st.markdown("◆ 新規追加")
             target_cat_t_add = st.radio("対象業務カテゴリ", categories_list, key="add_t_cat_radio", horizontal=True)
             new_task_name = st.text_input("詳細作業名を入力", key="add_t_name_form")
-            if st.button("➕ 追加する", key="btn_add_task"):
+            if st.button("追加する", key="btn_add_task"):
                 if new_task_name.strip():
                     conn = sqlite3.connect(DB_FILE)
                     c = conn.cursor()
@@ -891,7 +891,7 @@ with main_tab5:
                         conn.close()
 
         with col_t2:
-            st.markdown("**◆ 登録済み一覧 ＆ 削除・並び替え**")
+            st.markdown("◆ 登録済み一覧 ＆ 削除・並び替え")
             target_cat_t_edit = st.radio("表示する業務カテゴリ", categories_list, key="edit_t_cat_radio", horizontal=True)
             
             df_t_cat = df_tasks[df_tasks['category'] == target_cat_t_edit].copy()
@@ -899,7 +899,7 @@ with main_tab5:
                 for i in range(len(df_t_cat)):
                     row = df_t_cat.iloc[i]
                     cols = st.columns([5, 1, 1, 2])
-                    cols[0].markdown(f"**{row['task_name']}**")
+                    cols[0].markdown(f"{row['task_name']}")
                     
                     if cols[1].button("⬆️", key=f"t_up_{row['id']}") and i > 0:
                         reorder_master_items('task_master', target_cat_t_edit, int(row['id']), "up")
@@ -909,7 +909,7 @@ with main_tab5:
                         reorder_master_items('task_master', target_cat_t_edit, int(row['id']), "down")
                         st.rerun()
                         
-                    if cols[3].button("🗑️ 削除", key=f"t_del_{row['id']}"):
+                    if cols[3].button("削除", key=f"t_del_{row['id']}"):
                         conn = sqlite3.connect(DB_FILE)
                         c = conn.cursor()
                         c.execute("DELETE FROM task_master WHERE id = ?", (int(row['id']),))
@@ -926,8 +926,8 @@ with main_tab6:
     st.subheader("📥 スプレッドシート（CSV）からの一括取り込み")
     st.markdown("スプレッドシート等で管理していた過去のデータをCSV形式で一括登録できます。")
     st.markdown("""
-    **【必要なCSVの列名（完全一致）】**  
-    `作業日` （YYYY-MM-DD形式）, `担当者名`, `業務カテゴリ` （商品情報/撮影/工程管理）, `詳細作業`, `稼働時間(h)`, `処理数`, `備考・共有事項`
+    【必要なCSVの列名（完全一致）】  
+    作業日 （YYYY-MM-DD形式）, 担当者名, 業務カテゴリ （商品情報/撮影/工程管理）, 詳細作業, 稼働時間(h), 処理数, 備考・共有事項
     """)
     
     uploaded_file = st.file_uploader("CSVファイルを選択", type=['csv'])
@@ -935,10 +935,10 @@ with main_tab6:
     if uploaded_file is not None:
         try:
             df_upload = pd.read_csv(uploaded_file)
-            st.markdown("**アップロードデータのプレビュー（先頭5件）**")
+            st.markdown("アップロードデータのプレビュー（先頭5件）")
             st.dataframe(df_upload.head())
             
-            if st.button("📥 このデータで一括登録を実行する", type="primary"):
+            if st.button("このデータで一括登録を実行する", type="primary"):
                 conn = sqlite3.connect(DB_FILE)
                 c = conn.cursor()
                 success_count = 0
@@ -966,7 +966,7 @@ with main_tab6:
                 conn.close()
                 
                 if error_count == 0:
-                    st.success(f"🎉 全 {success_count} 件のデータを正常に取り込みました！")
+                    st.success(f"全 {success_count} 件のデータを正常に取り込みました！")
                 else:
                     st.warning(f"取り込み完了: {success_count} 件成功 / {error_count} 件失敗（データ形式を確認してください）")
                 
