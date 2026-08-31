@@ -42,17 +42,28 @@ def init_sqlite_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             category TEXT,
             name TEXT,
+            sort_order INTEGER DEFAULT 0,
             UNIQUE(category, name)
         )
     ''')
+    try:
+        c.execute("ALTER TABLE category_user_master ADD COLUMN sort_order INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
     c.execute('''
         CREATE TABLE IF NOT EXISTS task_master (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             category TEXT,
             task_name TEXT,
+            sort_order INTEGER DEFAULT 0,
             UNIQUE(category, task_name)
         )
     ''')
+    try:
+        c.execute("ALTER TABLE task_master ADD COLUMN sort_order INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
 
     c.execute("SELECT COUNT(*) FROM category_user_master")
     if c.fetchone()[0] == 0:
@@ -62,8 +73,8 @@ def init_sqlite_db():
             ("撮影", "小松"), ("撮影", "岡"), ("撮影", "細川"), ("撮影", "澤田"), ("撮影", "小林"),
             ("工程管理", "加藤"), ("工程管理", "澤田"), ("工程管理", "小林"), ("工程管理", "末廣")
         ]
-        for cat, u in default_category_users:
-            c.execute("INSERT OR IGNORE INTO category_user_master (category, name) VALUES (?, ?)", (cat, u))
+        for idx, (cat, u) in enumerate(default_category_users):
+            c.execute("INSERT OR IGNORE INTO category_user_master (category, name, sort_order) VALUES (?, ?, ?)", (cat, u, idx))
 
     c.execute("SELECT COUNT(*) FROM task_master")
     if c.fetchone()[0] == 0:
@@ -89,8 +100,8 @@ def init_sqlite_db():
             ("工程管理", "その他業務(チーム内)"),
             ("工程管理", "その他業務(チーム外)")
         ]
-        for cat, task in default_tasks:
-            c.execute("INSERT OR IGNORE INTO task_master (category, task_name) VALUES (?, ?)", (cat, task))
+        for idx, (cat, task) in enumerate(default_tasks):
+            c.execute("INSERT OR IGNORE INTO task_master (category, task_name, sort_order) VALUES (?, ?, ?)", (cat, task, idx))
 
     conn.commit()
     conn.close()
@@ -100,7 +111,7 @@ init_sqlite_db()
 def get_users_by_category():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT category, name FROM category_user_master ORDER BY id")
+    c.execute("SELECT category, name FROM category_user_master ORDER BY sort_order ASC, id ASC")
     rows = c.fetchall()
     conn.close()
     
@@ -113,7 +124,7 @@ def get_users_by_category():
 def get_all_users():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT DISTINCT name FROM category_user_master ORDER BY id")
+    c.execute("SELECT DISTINCT name FROM category_user_master ORDER BY sort_order ASC, id ASC")
     users = [row[0] for row in c.fetchall()]
     conn.close()
     return users if users else ["（未登録）"]
@@ -121,7 +132,7 @@ def get_all_users():
 def get_task_master():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT category, task_name FROM task_master ORDER BY id")
+    c.execute("SELECT category, task_name FROM task_master ORDER BY sort_order ASC, id ASC")
     rows = c.fetchall()
     conn.close()
     
@@ -240,6 +251,15 @@ def submit_form_cb(cat_key, category_name):
         st.session_state[msg_key] = f"🎉 {date_val} {user_val}さんの「{category_name}（{task_val}）」を登録しました。（その他業務として計上）"
     else:
         st.session_state[msg_key] = f"🎉 {date_val} {user_val}さんの「{category_name}（{task_val}）」を登録しました！（作業UPH: {uph}）"
+
+# マスタ並び替え用関数
+def swap_master_order(table_name, id1, id2, sort1, sort2):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute(f"UPDATE {table_name} SET sort_order = ? WHERE id = ?", (sort2, id1))
+    c.execute(f"UPDATE {table_name} SET sort_order = ? WHERE id = ?", (sort1, id2))
+    conn.commit()
+    conn.close()
 
 # ---------------------------------------------------------
 # 3. 画面構成
@@ -460,7 +480,7 @@ with main_tab1:
         st.info(f"{chk_date.strftime('%Y-%m-%d')} に登録されているデータはありません。")
 
 # ==========================================
-# TAB 2: ✏️ 登録実績の修正・削除（文字表示修正完了版）
+# TAB 2: ✏️ 登録実績の修正・削除
 # ==========================================
 with main_tab2:
     st.subheader("登録済み実績データの修正・削除")
@@ -501,7 +521,6 @@ with main_tab2:
         st.markdown("---")
         st.markdown(f"##### ✏️ 3. 選択中のデータ（ID: {target_id}）を編集")
         
-        # ターゲットデータ切り替え用セッション状態の即時設定
         k_date = f"e_date_{target_id}"
         k_cat = f"e_cat_{target_id}"
         k_user = f"e_user_{target_id}"
@@ -523,21 +542,13 @@ with main_tab2:
             avail_tasks.insert(0, curr_task)
         task_idx = avail_tasks.index(curr_task)
 
-        # セッション未定義時の初期セット
-        if k_date not in st.session_state:
-            st.session_state[k_date] = current_date
-        if k_cat not in st.session_state:
-            st.session_state[k_cat] = current_cat
-        if k_user not in st.session_state:
-            st.session_state[k_user] = curr_user
-        if k_task not in st.session_state:
-            st.session_state[k_task] = curr_task
-        if k_hours not in st.session_state:
-            st.session_state[k_hours] = float(target_row['work_hours'])
-        if k_count not in st.session_state:
-            st.session_state[k_count] = int(target_row['processed_count'])
-        if k_notes not in st.session_state:
-            st.session_state[k_notes] = str(target_row['notes'] or '')
+        if k_date not in st.session_state: st.session_state[k_date] = current_date
+        if k_cat not in st.session_state: st.session_state[k_cat] = current_cat
+        if k_user not in st.session_state: st.session_state[k_user] = curr_user
+        if k_task not in st.session_state: st.session_state[k_task] = curr_task
+        if k_hours not in st.session_state: st.session_state[k_hours] = float(target_row['work_hours'])
+        if k_count not in st.session_state: st.session_state[k_count] = int(target_row['processed_count'])
+        if k_notes not in st.session_state: st.session_state[k_notes] = str(target_row['notes'] or '')
 
         with st.container(border=True):
             col_e1, col_e2, col_e3 = st.columns(3)
@@ -547,7 +558,6 @@ with main_tab2:
                 edit_cat = st.selectbox("業務カテゴリ", cat_list, index=cat_idx, key=k_cat)
             
             with col_e2:
-                # カテゴリが画面上で切り替わった場合に対応した担当者・作業リストの更新
                 updated_users = CATEGORY_USER_MASTER.get(edit_cat, ALL_USERS).copy()
                 if st.session_state[k_user] not in updated_users:
                     updated_users.insert(0, st.session_state[k_user])
@@ -757,96 +767,134 @@ with main_tab4:
         st.info("データが登録されていません。")
 
 # ==========================================
-# TAB 5: ⚙️ マスタ管理画面
+# TAB 5: ⚙️ マスタ管理画面（並び替え機能追加版）
 # ==========================================
 with main_tab5:
-    st.subheader("選択肢マスタの編集")
+    st.subheader("選択肢マスタの編集・並び替え")
     
     m_tab1, m_tab2 = st.tabs(["👤 業務別担当者マスタ", "📋 詳細作業マスタ"])
 
-    # 1. 業務別担当者マスタ編集
+    # --- 1. 担当者マスタ ---
     with m_tab1:
-        col_u1, col_u2 = st.columns(2)
+        st.markdown("#### 担当者の追加・削除・並び替え")
+        
+        conn = sqlite3.connect(DB_FILE)
+        df_users = pd.read_sql_query("SELECT * FROM category_user_master ORDER BY sort_order ASC, id ASC", conn)
+        conn.close()
+
+        col_u1, col_u2 = st.columns([1, 2])
         
         with col_u1:
-            st.markdown("**担当者の追加**")
+            st.markdown("**◆ 新規追加**")
             target_cat_u_add = st.selectbox("対象業務カテゴリ", ["商品情報", "撮影", "工程管理"], key="add_u_cat")
             new_user_name = st.text_input("担当者名を入力", key="add_u_name")
-            if st.button("担当者を追加"):
+            if st.button("➕ 追加する", key="btn_add_user"):
                 if new_user_name.strip():
                     conn = sqlite3.connect(DB_FILE)
                     c = conn.cursor()
                     try:
-                        c.execute("INSERT INTO category_user_master (category, name) VALUES (?, ?)", (target_cat_u_add, new_user_name.strip()))
+                        c.execute("SELECT MAX(sort_order) FROM category_user_master")
+                        max_sort = c.fetchone()[0] or 0
+                        c.execute("INSERT INTO category_user_master (category, name, sort_order) VALUES (?, ?, ?)", (target_cat_u_add, new_user_name.strip(), max_sort + 1))
                         conn.commit()
-                        st.success(f"【{target_cat_u_add}】に「{new_user_name.strip()}」を追加しました。")
+                        st.success("追加しました。")
                         st.rerun()
                     except sqlite3.IntegrityError:
-                        st.error("その担当者は既にこの業務に登録されています。")
+                        st.error("既に登録されています。")
                     finally:
                         conn.close()
-                else:
-                    st.warning("名前を入力してください。")
 
         with col_u2:
-            st.markdown("**担当者の削除**")
-            target_cat_u_del = st.selectbox("対象業務カテゴリを選択", ["商品情報", "撮影", "工程管理"], key="del_u_cat")
-            existing_users_del = CATEGORY_USER_MASTER.get(target_cat_u_del, [])
+            st.markdown("**◆ 登録済み一覧 ＆ 削除・並び替え**")
+            target_cat_u_edit = st.selectbox("表示する業務カテゴリ", ["商品情報", "撮影", "工程管理"], key="edit_u_cat")
             
-            if existing_users_del:
-                delete_user_target = st.selectbox("削除する担当者を選択", existing_users_del, key="del_u_select")
-                if st.button("選択した担当者を削除"):
-                    conn = sqlite3.connect(DB_FILE)
-                    c = conn.cursor()
-                    c.execute("DELETE FROM category_user_master WHERE category = ? AND name = ?", (target_cat_u_del, delete_user_target))
-                    conn.commit()
-                    conn.close()
-                    st.success(f"【{target_cat_u_del}】から「{delete_user_target}」を削除しました。")
-                    st.rerun()
+            df_u_cat = df_users[df_users['category'] == target_cat_u_edit].copy()
+            if not df_u_cat.empty:
+                for i in range(len(df_u_cat)):
+                    row = df_u_cat.iloc[i]
+                    cols = st.columns([5, 1, 1, 2])
+                    cols[0].markdown(f"**{row['name']}**")
+                    
+                    if cols[1].button("⬆️", key=f"u_up_{row['id']}") and i > 0:
+                        prev_row = df_u_cat.iloc[i-1]
+                        swap_master_order('category_user_master', row['id'], prev_row['id'], row['sort_order'], prev_row['sort_order'])
+                        st.rerun()
+                        
+                    if cols[2].button("⬇️", key=f"u_dn_{row['id']}") and i < len(df_u_cat) - 1:
+                        next_row = df_u_cat.iloc[i+1]
+                        swap_master_order('category_user_master', row['id'], next_row['id'], row['sort_order'], next_row['sort_order'])
+                        st.rerun()
+                        
+                    if cols[3].button("🗑️ 削除", key=f"u_del_{row['id']}"):
+                        conn = sqlite3.connect(DB_FILE)
+                        c = conn.cursor()
+                        c.execute("DELETE FROM category_user_master WHERE id = ?", (int(row['id']),))
+                        conn.commit()
+                        conn.close()
+                        st.rerun()
             else:
-                st.info("この業務に削除可能な担当者が登録されていません。")
+                st.info("登録データがありません。")
 
-    # 2. 詳細作業マスタ編集
+    # --- 2. 詳細作業マスタ ---
     with m_tab2:
-        col_t1, col_t2 = st.columns(2)
+        st.markdown("#### 詳細作業の追加・削除・並び替え")
+        
+        conn = sqlite3.connect(DB_FILE)
+        df_tasks = pd.read_sql_query("SELECT * FROM task_master ORDER BY sort_order ASC, id ASC", conn)
+        conn.close()
 
+        col_t1, col_t2 = st.columns([1, 2])
+        
         with col_t1:
-            st.markdown("**詳細作業の追加**")
-            target_cat_add = st.selectbox("対象カテゴリ", ["商品情報", "撮影", "工程管理"], key="add_t_cat")
-            new_task_name = st.text_input("詳細作業名を入力", key="add_t_name")
-            if st.button("詳細作業を追加"):
+            st.markdown("**◆ 新規追加**")
+            target_cat_t_add = st.selectbox("対象業務カテゴリ", ["商品情報", "撮影", "工程管理"], key="add_t_cat_form")
+            new_task_name = st.text_input("詳細作業名を入力", key="add_t_name_form")
+            if st.button("➕ 追加する", key="btn_add_task"):
                 if new_task_name.strip():
                     conn = sqlite3.connect(DB_FILE)
                     c = conn.cursor()
                     try:
-                        c.execute("INSERT INTO task_master (category, task_name) VALUES (?, ?)", (target_cat_add, new_task_name.strip()))
+                        c.execute("SELECT MAX(sort_order) FROM task_master")
+                        max_sort = c.fetchone()[0] or 0
+                        c.execute("INSERT INTO task_master (category, task_name, sort_order) VALUES (?, ?, ?)", (target_cat_t_add, new_task_name.strip(), max_sort + 1))
                         conn.commit()
-                        st.success(f"【{target_cat_add}】に「{new_task_name.strip()}」を追加しました。")
+                        st.success("追加しました。")
                         st.rerun()
                     except sqlite3.IntegrityError:
-                        st.error("その詳細作業名は既にこのカテゴリに登録されています。")
+                        st.error("既に登録されています。")
                     finally:
                         conn.close()
-                else:
-                    st.warning("作業名を入力してください。")
 
         with col_t2:
-            st.markdown("**詳細作業の削除**")
-            target_cat_del = st.selectbox("対象カテゴリを選択", ["商品情報", "撮影", "工程管理"], key="del_t_cat")
-            existing_tasks_del = TASK_MASTER.get(target_cat_del, [])
+            st.markdown("**◆ 登録済み一覧 ＆ 削除・並び替え**")
+            target_cat_t_edit = st.selectbox("表示する業務カテゴリ", ["商品情報", "撮影", "工程管理"], key="edit_t_cat_form")
             
-            if existing_tasks_del:
-                delete_task_target = st.selectbox("削除する詳細作業を選択", existing_tasks_del, key="del_t_select")
-                if st.button("選択した詳細作業を削除"):
-                    conn = sqlite3.connect(DB_FILE)
-                    c = conn.cursor()
-                    c.execute("DELETE FROM task_master WHERE category = ? AND task_name = ?", (target_cat_del, delete_task_target))
-                    conn.commit()
-                    conn.close()
-                    st.success(f"【{target_cat_del}】の「{delete_task_target}」を削除しました。")
-                    st.rerun()
+            df_t_cat = df_tasks[df_tasks['category'] == target_cat_t_edit].copy()
+            if not df_t_cat.empty:
+                for i in range(len(df_t_cat)):
+                    row = df_t_cat.iloc[i]
+                    cols = st.columns([5, 1, 1, 2])
+                    cols[0].markdown(f"**{row['task_name']}**")
+                    
+                    if cols[1].button("⬆️", key=f"t_up_{row['id']}") and i > 0:
+                        prev_row = df_t_cat.iloc[i-1]
+                        swap_master_order('task_master', row['id'], prev_row['id'], row['sort_order'], prev_row['sort_order'])
+                        st.rerun()
+                        
+                    if cols[2].button("⬇️", key=f"t_dn_{row['id']}") and i < len(df_t_cat) - 1:
+                        next_row = df_t_cat.iloc[i+1]
+                        swap_master_order('task_master', row['id'], next_row['id'], row['sort_order'], next_row['sort_order'])
+                        st.rerun()
+                        
+                    if cols[3].button("🗑️ 削除", key=f"t_del_{row['id']}"):
+                        conn = sqlite3.connect(DB_FILE)
+                        c = conn.cursor()
+                        c.execute("DELETE FROM task_master WHERE id = ?", (int(row['id']),))
+                        conn.commit()
+                        conn.close()
+                        st.rerun()
             else:
-                st.info("このカテゴリに削除可能な作業が登録されていません。")
+                st.info("登録データがありません。")
 
 # ==========================================
 # TAB 6: 📥 CSV一括取り込み
