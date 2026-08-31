@@ -255,12 +255,23 @@ def submit_form_cb(cat_key, category_name):
     else:
         st.session_state[msg_key] = f"🎉 {date_val} {user_val}さんの「{category_name}（{task_val}）」を登録しました！（作業UPH: {uph}）"
 
-# マスタ並び替え用関数
-def swap_master_order(table_name, id1, id2, sort1, sort2):
+# 確実な並び替え関数（全要素に連番を再割り当て）
+def reorder_master_items(table_name, category_name, item_id, direction):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute(f"UPDATE {table_name} SET sort_order = ? WHERE id = ?", (sort2, id1))
-    c.execute(f"UPDATE {table_name} SET sort_order = ? WHERE id = ?", (sort1, id2))
+    c.execute(f"SELECT id FROM {table_name} WHERE category = ? ORDER BY sort_order ASC, id ASC", (category_name,))
+    id_list = [row[0] for row in c.fetchall()]
+
+    if item_id in id_list:
+        idx = id_list.index(item_id)
+        if direction == "up" and idx > 0:
+            id_list[idx], id_list[idx-1] = id_list[idx-1], id_list[idx]
+        elif direction == "down" and idx < len(id_list) - 1:
+            id_list[idx], id_list[idx+1] = id_list[idx+1], id_list[idx]
+
+        for new_sort, sys_id in enumerate(id_list):
+            c.execute(f"UPDATE {table_name} SET sort_order = ? WHERE id = ?", (new_sort, sys_id))
+
     conn.commit()
     conn.close()
 
@@ -770,7 +781,7 @@ with main_tab4:
         st.info("データが登録されていません。")
 
 # ==========================================
-# TAB 5: ⚙️ マスタ管理画面 (選択肢表示改善版)
+# TAB 5: ⚙️ マスタ管理画面 (並び替えロジック完全修正版)
 # ==========================================
 with main_tab5:
     st.subheader("選択肢マスタの編集・並び替え")
@@ -821,13 +832,11 @@ with main_tab5:
                     cols[0].markdown(f"**{row['name']}**")
                     
                     if cols[1].button("⬆️", key=f"u_up_{row['id']}") and i > 0:
-                        prev_row = df_u_cat.iloc[i-1]
-                        swap_master_order('category_user_master', row['id'], prev_row['id'], row['sort_order'], prev_row['sort_order'])
+                        reorder_master_items('category_user_master', target_cat_u_edit, int(row['id']), "up")
                         st.rerun()
                         
                     if cols[2].button("⬇️", key=f"u_dn_{row['id']}") and i < len(df_u_cat) - 1:
-                        next_row = df_u_cat.iloc[i+1]
-                        swap_master_order('category_user_master', row['id'], next_row['id'], row['sort_order'], next_row['sort_order'])
+                        reorder_master_items('category_user_master', target_cat_u_edit, int(row['id']), "down")
                         st.rerun()
                         
                     if cols[3].button("🗑️ 削除", key=f"u_del_{row['id']}"):
@@ -882,13 +891,11 @@ with main_tab5:
                     cols[0].markdown(f"**{row['task_name']}**")
                     
                     if cols[1].button("⬆️", key=f"t_up_{row['id']}") and i > 0:
-                        prev_row = df_t_cat.iloc[i-1]
-                        swap_master_order('task_master', row['id'], prev_row['id'], row['sort_order'], prev_row['sort_order'])
+                        reorder_master_items('task_master', target_cat_t_edit, int(row['id']), "up")
                         st.rerun()
                         
                     if cols[2].button("⬇️", key=f"t_dn_{row['id']}") and i < len(df_t_cat) - 1:
-                        next_row = df_t_cat.iloc[i+1]
-                        swap_master_order('task_master', row['id'], next_row['id'], row['sort_order'], next_row['sort_order'])
+                        reorder_master_items('task_master', target_cat_t_edit, int(row['id']), "down")
                         st.rerun()
                         
                     if cols[3].button("🗑️ 削除", key=f"t_del_{row['id']}"):
