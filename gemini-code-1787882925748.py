@@ -146,13 +146,13 @@ def get_task_master():
     return task_dict
 
 # ---------------------------------------------------------
-# 2. マスターデータ・基本設定 (PC画面向けフォントサイズ拡大)
+# 2. マスターデータ・基本設定 (集計値スタイル大幅拡大)
 # ---------------------------------------------------------
 st.set_page_config(page_title="作業処理数・可処分管理アプリ", layout="wide")
 
 st.markdown("""
 <style>
-/* 全体の標準文字サイズを拡大 */
+/* 全体の標準文字サイズ */
 html, body, [class*="css"], [class*="st-"] {
     font-size: 17px !important;
 }
@@ -176,6 +176,17 @@ div[data-testid="stTextInput"] input,
 div[data-testid="stDateInput"] input,
 div[data-testid="stSelectbox"] div {
     font-size: 1.1rem !important;
+}
+
+/* 集計値（合計値・UPHなど）の数値とラベルを強調・特大化 */
+div[data-testid="stMetricValue"] {
+    font-size: 2.5rem !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+}
+div[data-testid="stMetricLabel"] {
+    font-size: 1.25rem !important;
+    font-weight: bold !important;
 }
 
 /* 上部タブの文字サイズ拡大 */
@@ -819,7 +830,7 @@ with main_tab4:
         st.info("データが登録されていません。")
 
 # ==========================================
-# TAB 5: ⚙️ マスタ管理画面 (全カテゴリラジオボタン表示版)
+# TAB 5: ⚙️ マスタ管理画面
 # ==========================================
 with main_tab5:
     st.subheader("選択肢マスタの編集・並び替え")
