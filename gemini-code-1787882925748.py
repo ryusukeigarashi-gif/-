@@ -146,12 +146,51 @@ def get_task_master():
     return task_dict
 
 # ---------------------------------------------------------
-# 2. マスターデータ・基本設定
+# 2. マスターデータ・基本設定 (PC画面向けフォントサイズ拡大)
 # ---------------------------------------------------------
 st.set_page_config(page_title="作業処理数・可処分管理アプリ", layout="wide")
 
 st.markdown("""
 <style>
+/* 全体の標準文字サイズを拡大 */
+html, body, [class*="css"], [class*="st-"] {
+    font-size: 17px !important;
+}
+
+/* ボタンの文字を大きく・太字化 */
+div[data-testid="stButton"] button {
+    font-size: 1.15rem !important;
+    font-weight: bold !important;
+    padding: 0.4rem 0.8rem !important;
+}
+
+/* ラジオボタン（選択肢）の文字サイズ拡大 */
+div[data-testid="stRadio"] label {
+    font-size: 1.15rem !important;
+    font-weight: 600 !important;
+}
+
+/* 入力欄（数値・テキスト・日付）の文字サイズ拡大 */
+div[data-testid="stNumberInput"] input, 
+div[data-testid="stTextInput"] input, 
+div[data-testid="stDateInput"] input,
+div[data-testid="stSelectbox"] div {
+    font-size: 1.1rem !important;
+}
+
+/* 上部タブの文字サイズ拡大 */
+button[data-baseweb="tab"] {
+    font-size: 1.15rem !important;
+    font-weight: bold !important;
+}
+
+/* 見出し（H1〜H5）の強調 */
+h1 { font-size: 2.2rem !important; }
+h2 { font-size: 1.8rem !important; }
+h3 { font-size: 1.5rem !important; }
+h4, h5 { font-size: 1.25rem !important; font-weight: bold !important; }
+
+/* カラム間隔の調整 */
 div[data-testid="column"] {
     padding: 0px 4px;
 }
@@ -255,7 +294,6 @@ def submit_form_cb(cat_key, category_name):
     else:
         st.session_state[msg_key] = f"🎉 {date_val} {user_val}さんの「{category_name}（{task_val}）」を登録しました！（作業UPH: {uph}）"
 
-# 確実な並び替え関数（全要素に連番を再割り当て）
 def reorder_master_items(table_name, category_name, item_id, direction):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -781,7 +819,7 @@ with main_tab4:
         st.info("データが登録されていません。")
 
 # ==========================================
-# TAB 5: ⚙️ マスタ管理画面 (並び替えロジック完全修正版)
+# TAB 5: ⚙️ マスタ管理画面 (全カテゴリラジオボタン表示版)
 # ==========================================
 with main_tab5:
     st.subheader("選択肢マスタの編集・並び替え")
