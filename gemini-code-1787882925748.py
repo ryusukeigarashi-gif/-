@@ -141,10 +141,6 @@ st.markdown("""
 div[data-testid="column"] {
     padding: 0px 2px;
 }
-button {
-    width: 100%;
-    margin-bottom: 5px;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -171,7 +167,7 @@ def update_log(log_id, work_date, user_name, category, task_name, work_hours, pr
         UPDATE daily_logs 
         SET work_date = ?, user_name = ?, category = ?, task_name = ?, work_hours = ?, processed_count = ?, notes = ?
         WHERE id = ?
-    ''', (work_date.strftime("%Y-%m-%d"), user_name, category, task_name, float(work_hours), int(processed_count), str(notes), log_id))
+    ''', (pd.to_datetime(work_date).strftime("%Y-%m-%d"), user_name, category, task_name, float(work_hours), int(processed_count), str(notes), log_id))
     conn.commit()
     conn.close()
 
@@ -207,7 +203,7 @@ def compute_summary_uph(df_agg):
     return df_agg
 
 # ---------------------------------------------------------
-# コールバック関数群 (セッション状態を安全に更新)
+# コールバック関数群
 # ---------------------------------------------------------
 def set_hours_cb(key, val):
     st.session_state[key] = float(val)
@@ -464,7 +460,7 @@ with main_tab1:
         st.info(f"{chk_date.strftime('%Y-%m-%d')} に登録されているデータはありません。")
 
 # ==========================================
-# TAB 2: ✏️ 登録実績の修正・削除（データ完全連動版）
+# TAB 2: ✏️ 登録実績の修正・削除（文字表示修正完了版）
 # ==========================================
 with main_tab2:
     st.subheader("登録済み実績データの修正・削除")
@@ -498,47 +494,77 @@ with main_tab2:
         target_row = df_date_edit[df_date_edit['label'] == selected_label].iloc[0]
         target_id = int(target_row['id'])
         current_date = datetime.strptime(target_row['work_date'], "%Y-%m-%d").date()
-        current_cat = str(target_row['category']) if target_row['category'] in ["商品情報", "撮影", "工程管理"] else "商品情報"
+        current_cat = str(target_row['category']) if str(target_row['category']) in ["商品情報", "撮影", "工程管理"] else "商品情報"
         curr_user = str(target_row['user_name'])
         curr_task = str(target_row['task_name'])
         
         st.markdown("---")
         st.markdown(f"##### ✏️ 3. 選択中のデータ（ID: {target_id}）を編集")
         
+        # ターゲットデータ切り替え用セッション状態の即時設定
+        k_date = f"e_date_{target_id}"
+        k_cat = f"e_cat_{target_id}"
+        k_user = f"e_user_{target_id}"
+        k_task = f"e_task_{target_id}"
+        k_hours = f"e_hours_{target_id}"
+        k_count = f"e_count_{target_id}"
+        k_notes = f"e_notes_{target_id}"
+
+        cat_list = ["商品情報", "撮影", "工程管理"]
+        cat_idx = cat_list.index(current_cat) if current_cat in cat_list else 0
+
+        avail_users = CATEGORY_USER_MASTER.get(current_cat, ALL_USERS).copy()
+        if curr_user not in avail_users:
+            avail_users.insert(0, curr_user)
+        user_idx = avail_users.index(curr_user)
+
+        avail_tasks = TASK_MASTER.get(current_cat, ["通常作業"]).copy()
+        if curr_task not in avail_tasks:
+            avail_tasks.insert(0, curr_task)
+        task_idx = avail_tasks.index(curr_task)
+
+        # セッション未定義時の初期セット
+        if k_date not in st.session_state:
+            st.session_state[k_date] = current_date
+        if k_cat not in st.session_state:
+            st.session_state[k_cat] = current_cat
+        if k_user not in st.session_state:
+            st.session_state[k_user] = curr_user
+        if k_task not in st.session_state:
+            st.session_state[k_task] = curr_task
+        if k_hours not in st.session_state:
+            st.session_state[k_hours] = float(target_row['work_hours'])
+        if k_count not in st.session_state:
+            st.session_state[k_count] = int(target_row['processed_count'])
+        if k_notes not in st.session_state:
+            st.session_state[k_notes] = str(target_row['notes'] or '')
+
         with st.container(border=True):
             col_e1, col_e2, col_e3 = st.columns(3)
             
             with col_e1:
-                edit_date = st.date_input("作業日", current_date, key=f"edit_date_{target_id}")
-                
-                cat_list = ["商品情報", "撮影", "工程管理"]
-                cat_idx = cat_list.index(current_cat) if current_cat in cat_list else 0
-                
-                # keyに target_id を含めることで、選択が変わるたびに再描画され正しい初期値が表示されます
-                edit_cat = st.selectbox("業務カテゴリ", cat_list, index=cat_idx, key=f"edit_cat_{target_id}")
+                edit_date = st.date_input("作業日", key=k_date)
+                edit_cat = st.selectbox("業務カテゴリ", cat_list, index=cat_idx, key=k_cat)
             
             with col_e2:
-                # ユーザーリストの取得と現在値の紐付け
-                avail_users = CATEGORY_USER_MASTER.get(edit_cat, ALL_USERS).copy()
-                if curr_user not in avail_users:
-                    avail_users.insert(0, curr_user)
-                user_idx = avail_users.index(curr_user)
+                # カテゴリが画面上で切り替わった場合に対応した担当者・作業リストの更新
+                updated_users = CATEGORY_USER_MASTER.get(edit_cat, ALL_USERS).copy()
+                if st.session_state[k_user] not in updated_users:
+                    updated_users.insert(0, st.session_state[k_user])
+                u_index = updated_users.index(st.session_state[k_user])
+                edit_user = st.selectbox("担当者名", updated_users, index=u_index, key=k_user)
                 
-                edit_user = st.selectbox("担当者名", avail_users, index=user_idx, key=f"edit_user_{target_id}")
-                
-                # 詳細作業リストの取得と現在値の紐付け
-                avail_tasks = TASK_MASTER.get(edit_cat, ["通常作業"]).copy()
-                if curr_task not in avail_tasks:
-                    avail_tasks.insert(0, curr_task)
-                task_idx = avail_tasks.index(curr_task)
-                
-                edit_task = st.selectbox("詳細作業", avail_tasks, index=task_idx, key=f"edit_task_{target_id}")
+                updated_tasks = TASK_MASTER.get(edit_cat, ["通常作業"]).copy()
+                if st.session_state[k_task] not in updated_tasks:
+                    updated_tasks.insert(0, st.session_state[k_task])
+                t_index = updated_tasks.index(st.session_state[k_task])
+                edit_task = st.selectbox("詳細作業", updated_tasks, index=t_index, key=k_task)
                 
             with col_e3:
-                edit_hours = st.number_input("稼働時間 (時間)", min_value=0.0, max_value=24.0, value=float(target_row['work_hours']), step=0.25, key=f"edit_hours_{target_id}")
-                edit_count = st.number_input("処理数 (点/箱)", min_value=0, value=int(target_row['processed_count']), step=1, key=f"edit_count_{target_id}")
+                edit_hours = st.number_input("稼働時間 (時間)", min_value=0.0, max_value=24.0, step=0.25, key=k_hours)
+                edit_count = st.number_input("処理数 (点/箱)", min_value=0, step=1, key=k_count)
             
-            edit_notes = st.text_input("備考・共有事項", value=str(target_row['notes'] or ''), key=f"edit_notes_{target_id}")
+            edit_notes = st.text_input("備考・共有事項", key=k_notes)
 
             col_btn1, col_btn2 = st.columns([1, 1])
             with col_btn1:
